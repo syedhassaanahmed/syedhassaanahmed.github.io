@@ -68,7 +68,7 @@ private static DocumentClient CreateDocumentClient()
 }
 ```
 
-A noteworthy parameter to DocumentClient constructor is ConsistencyLevel.ConsistentPrefix*. *[Consistent prefix](https://docs.microsoft.com/en-us/azure/cosmos-db/consistency-levels#consistency-levels) guarantees that reads never see out of order writes. If products arrived in order p1, p2, p3, then a client sees either p1 or p1,p2 or p1,p2,p3, but never out of order like p1,p3 or p2,p1,p3 — a reasonable compromise between Strong and Eventual Consistencies.
+A noteworthy parameter to DocumentClient constructor is ConsistencyLevel.ConsistentPrefix. [Consistent prefix](https://docs.microsoft.com/en-us/azure/cosmos-db/consistency-levels#consistency-levels) guarantees that reads never see out of order writes. If products arrived in order p1, p2, p3, then a client sees either p1 or p1,p2 or p1,p2,p3, but never out of order like p1,p3 or p2,p1,p3 — a reasonable compromise between Strong and Eventual Consistencies.
 
 Looking deeper into how we upsert data into Cosmos DB;
 ```cs
@@ -88,7 +88,7 @@ In terms of throughput and storage, Cosmos DB collections can be created as *fix
 Note the last statement in above method; Every response from Cosmos DB includes a custom header — x-ms-request-charge which contains RU consumed for the request. The header is also accessible through Cosmos DB .NET SDK as RequestCharge property. We logged this value for telemetry reasons (more on this in [measuring performance](https://medium.com/p/bca6c9d45eeb#af1d) section below).
 
 ### Data distribution
-Once we had our data ingested and stored, we wanted to get notified as CRUD operations happen on storage. The [**Change Feed**](https://docs.microsoft.com/en-us/azure/cosmos-db/change-feed)** **support in Cosmos DB feels like a match made in heaven for this very scenario —triggering notification when a document is operated on. Here is how we created a change feed trigger function.
+Once we had our data ingested and stored, we wanted to get notified as CRUD operations happen on storage. The [**Change Feed**](https://docs.microsoft.com/en-us/azure/cosmos-db/change-feed) support in Cosmos DB feels like a match made in heaven for this very scenario —triggering notification when a document is operated on. Here is how we created a change feed trigger function.
 ```cs
 [FunctionName(nameof(ChangeFeedFunc))]
 public static Task Run([CosmosDBTrigger(
@@ -164,7 +164,7 @@ public static async Task SendToConsumerFunc([ActivityTrigger] (string consumerUr
 ```
 
 ### Load Testing
-Its all fun and games until the inevitable question — **“But, Will it scale?” **The only way to find out is by measuring. Our colleague [Ville Rantala](https://blog.vjrantal.net/) has already done a great job of [**Load testing with Azure Container Instances and wrk**](https://blog.vjrantal.net/2017/08/10/load-testing-with-azure-container-instances-and-wrk/). Leveraging his work, we created a simple bash script to generate load against the HTTP trigger function which was created earlier for data ingestion.
+Its all fun and games until the inevitable question — **“But, Will it scale?”** The only way to find out is by measuring. Our colleague [Ville Rantala](https://blog.vjrantal.net/) has already done a great job of [**Load testing with Azure Container Instances and wrk**](https://blog.vjrantal.net/2017/08/10/load-testing-with-azure-container-instances-and-wrk/). Leveraging his work, we created a simple bash script to generate load against the HTTP trigger function which was created earlier for data ingestion.
 ```bash
 SCRIPT_URL=https://raw.githubusercontent.com/syedhassaanahmed/azure-event-driven-data-pipeline/master/load-test/products.lua
 WRK_OPTIONS="-t1 -c100 -d2m -R1500 --latency"
@@ -214,9 +214,11 @@ end
 ### Measuring performance
 With trivial efforts, we were able to add [Application Insights](https://docs.microsoft.com/en-us/azure/application-insights/app-insights-overview) to all Azure Functions Apps and have a powerful tool for measuring performance of entire flow. Application Insights provides [live metrics streaming](https://docs.microsoft.com/en-us/azure/application-insights/app-insights-live-stream), designed to have minimal latency.
 
-![](/img/1*mrCLR7n8SBHmVXH0nx1zjQ.png)Live metrics stream from Data ingestion Azure Functions AppThrough the use of Live Metrics, we discovered and made useful enhancements to our solution.
+![](/img/live_metrics_stream.png)
 
-* Azure Functions can be [hosted](https://docs.microsoft.com/en-us/azure/azure-functions/functions-scale) in 2 different modes: *Consumption plan* and [*App Service plan*](https://docs.microsoft.com/en-us/azure/app-service/azure-web-sites-web-hosting-plans-in-depth-overview). Consumption plan automatically scales out as necessary to handle load, hence we initially chose it for all function apps. Although the Azure Functions team has made [**significant improvements in auto-scaling of HTTP trigger functions**](https://www.azurefromthetrenches.com/azure-functions-significant-improvements-in-http-trigger-scaling/) on consumption plan, we required even more aggressive ramp up and instead chose to host HTTP function on App Service Plan. (*For 1500 req/sec, four *[*S3*](https://azure.microsoft.com/en-us/pricing/details/app-service/)* instances were chosen*). Consumption plan can be migrated to App Service plan with the following [Azure PowerShell](https://docs.microsoft.com/en-us/powershell/azure/overview?view=azurermps-5.5.0) snippet.
+Through the use of Live Metrics, we discovered and made useful enhancements to our solution.
+
+* Azure Functions can be [hosted](https://docs.microsoft.com/en-us/azure/azure-functions/functions-scale) in 2 different modes: *Consumption plan* and [*App Service plan*](https://docs.microsoft.com/en-us/azure/app-service/azure-web-sites-web-hosting-plans-in-depth-overview). Consumption plan automatically scales out as necessary to handle load, hence we initially chose it for all function apps. Although the Azure Functions team has made [**significant improvements in auto-scaling of HTTP trigger functions**](https://www.azurefromthetrenches.com/azure-functions-significant-improvements-in-http-trigger-scaling/) on consumption plan, we required even more aggressive ramp up and instead chose to host HTTP function on App Service Plan. (*For 1500 req/sec, four [S3](https://azure.microsoft.com/en-us/pricing/details/app-service/) instances were chosen*). Consumption plan can be migrated to App Service plan with the following [Azure PowerShell](https://docs.microsoft.com/en-us/powershell/azure/overview?view=azurermps-5.5.0) snippet.
 ```powershell
 Select-AzureRmSubscription -SubscriptionId "<SUBSCRIPTION_ID>"
 Set-AzureRmWebApp -Name "<FUNCTION_APP>" -ResourceGroupName "<RESOURCE_GROUP>" -AppServicePlan "<NEW_APP_SERVICE_PLAN>"
@@ -283,7 +285,7 @@ customMetrics
 ### E2E Architecture
 With all components of our design in place, we ended up with this overall architecture;
 
-![](/img/1*ljTHA96DW4TkrqSrcaZXsw.png)
+![](https://github.com/syedhassaanahmed/azure-event-driven-data-pipeline/blob/master/docs/images/architecture.png?raw=true)
 
 ### Conclusion
 The entire code is available on [GitHub](https://github.com/syedhassaanahmed/azure-event-driven-data-pipeline) and we’ve deliberately kept it as generic as possible, in order for it to be a reusable solution. For single-click repeatable deployments, there is also an [ARM template](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-manager-create-first-template) available.
