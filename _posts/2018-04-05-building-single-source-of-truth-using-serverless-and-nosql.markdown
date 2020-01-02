@@ -4,7 +4,7 @@ title:	"Building single source of truth using Serverless and NoSQL"
 date:	2018-04-05
 ---
 
-  We recently worked with a retail customer to help them accelerate their cloud journey from on-prem to Microsoft Azure. As with all our engagements, we learned a good deal of lessons and have some findings to share. My colleague [Dag König](https://channel9.msdn.com/Events/Speakers/dag-knig) and I summarized the outcomes and presented them in [Stockholm Azure Meetup (March 2018)](https://www.meetup.com/Stockholm-Azure-Meetup/events/247951748/). In this post, we’ll dive deeper into how we built an [event-driven](https://docs.microsoft.com/en-us/azure/architecture/guide/architecture-styles/event-driven) data ingestion pipeline, leveraging Serverless compute and NoSQL databases.
+  We recently worked with a retail customer to help them accelerate their cloud journey from on-prem to Microsoft Azure. As with all our engagements, we learned a good deal of lessons and have some findings to share. My colleague [Dag König](https://channel9.msdn.com/Events/Speakers/dag-knig) and I summarized the outcomes and presented them in [Stockholm Azure Meetup (March 2018)](https://www.meetup.com/Stockholm-Azure-Meetup/events/247951748/). In this post, we'll dive deeper into how we built an [event-driven](https://docs.microsoft.com/en-us/azure/architecture/guide/architecture-styles/event-driven) data ingestion pipeline, leveraging Serverless compute and NoSQL databases.
 
 #### Table of Contents
 - [The Challenge](#the-challenge)
@@ -17,7 +17,7 @@ date:	2018-04-05
 - [Conclusion](#conclusion)
 
 ### The Challenge
-Customer has a large and complicated data repository which is maintained by multiple systems — let’s call it ***Masterdata***. Changes in Masterdata are synced between many systems. Today’s on-prem solution suffers from inconsistencies, lost entity changes, poor performance at peaks.​ Customer wants to build a high scale cloud-hosted *"Single source of truth"* repository, including mechanisms for Masterdata changes to get pushed to 3rd party consumers.​ The solution needs to support an unpredictable load with a maximum of 1500 requests/sec.
+Customer has a large and complicated data repository which is maintained by multiple systems — let's call it ***Masterdata***. Changes in Masterdata are synced between many systems. Today's on-prem solution suffers from inconsistencies, lost entity changes, poor performance at peaks.​ Customer wants to build a high scale cloud-hosted *"Single source of truth"* repository, including mechanisms for Masterdata changes to get pushed to 3rd party consumers.​ The solution needs to support an unpredictable load with a maximum of 1500 requests/sec.
 
 We approached the problem by dividing it into these logical concerns;
 
@@ -38,9 +38,9 @@ public static string Run([HttpTrigger(AuthorizationLevel.Function, "post")]
 In case the output binding to Service Bus failed, an Exception will be raised from above function. Currently its being handled in client application (not shown in this post but represented by the [*Load generator*](#e2e-architecture)) with retries using [Polly](https://github.com/App-vNext/Polly). If the issue becomes more prominent in future, we plan to implement [Dead-Lettering](https://docs.microsoft.com/en-us/azure/service-bus-messaging/service-bus-dead-letter-queues#application-level-dead-lettering) in above function.
 
 ### Data storage
-Our next big challenge was to decide where to store the data. From prior experience with RDBMS, customer highlighted the challenges they faced including maintenance of normalized schema, scaling issues, complexity of queries. There was some temptation around Graph databases, however customer didn’t require traversing a network of relationships — something Graph databases are exceptionally good at.
+Our next big challenge was to decide where to store the data. From prior experience with RDBMS, customer highlighted the challenges they faced including maintenance of normalized schema, scaling issues, complexity of queries. There was some temptation around Graph databases, however customer didn't require traversing a network of relationships — something Graph databases are exceptionally good at.
 
-Due to changing nature of the data as consequence of evolving business requirements, we chose a document database. Document databases in Azure can be provisioned as 3rd party —[ MongoDB Atlas](https://docs.atlas.mongodb.com/reference/microsoft-azure/), as well as first-party PaaS — [Azure Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/introduction). Customer’s affinity towards PaaS and the elastic-scale, low-latency capabilities tipped this decision in Cosmos DB’s favor.
+Due to changing nature of the data as consequence of evolving business requirements, we chose a document database. Document databases in Azure can be provisioned as 3rd party —[ MongoDB Atlas](https://docs.atlas.mongodb.com/reference/microsoft-azure/), as well as first-party PaaS — [Azure Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/introduction). Customer's affinity towards PaaS and the elastic-scale, low-latency capabilities tipped this decision in Cosmos DB's favor.
 
 Continuing our pipeline from Service Bus, we connected another function which gets triggered when a product appears in the Service Bus Queue and inserts that product to Cosmos DB.
 ```cs
@@ -83,7 +83,7 @@ private static async Task UpsertProductAsync(Document product, ILogger log)
 }
 ```
 
-In terms of throughput and storage, Cosmos DB collections can be created as *fixed* or *unlimited*. Fixed collections have a maximum limit of 10 GB and 10,000 [RU](https://docs.microsoft.com/en-us/azure/cosmos-db/request-units)/s throughput. For our design to be future-proof, we chose unlimited collections. To create an unlimited collection we must specify a [partition key](https://docs.microsoft.com/en-us/azure/cosmos-db/partition-data) — an important decision that **can’t be changed after a collection is created**. We must pick a property name that has a wide range of values so that data is evenly distributed. For this reason, we explicitly enhanced our data with a new property `partitionKey` and populated it with `productGroupId` *(assuming this field has a wide range of evenly distributed values)*.
+In terms of throughput and storage, Cosmos DB collections can be created as *fixed* or *unlimited*. Fixed collections have a maximum limit of 10 GB and 10,000 [RU](https://docs.microsoft.com/en-us/azure/cosmos-db/request-units)/s throughput. For our design to be future-proof, we chose unlimited collections. To create an unlimited collection we must specify a [partition key](https://docs.microsoft.com/en-us/azure/cosmos-db/partition-data) — an important decision that **can't be changed after a collection is created**. We must pick a property name that has a wide range of values so that data is evenly distributed. For this reason, we explicitly enhanced our data with a new property `partitionKey` and populated it with `productGroupId` *(assuming this field has a wide range of evenly distributed values)*.
 
 Note the last statement in above method; Every response from Cosmos DB includes a custom header — `x-ms-request-charge` which contains RU consumed for the request. The header is also accessible through Cosmos DB .NET SDK as `RequestCharge` property. We logged this value for telemetry reasons (more on this in [measuring performance](#measuring-performance) section below).
 
@@ -133,7 +133,7 @@ public static async Task OrchestrateConsumersFunc([OrchestrationTrigger] Durable
 }
 ```
 
-We obtained the Cosmos DB product json sent earlier from change feed, then read the list of consumers — *(For simplicity we’ve chosen to store consumer HTTP endpoints as a pipe **|** delimited string in Application Settings. In reality they reside in Table Storage)*. After that we create an [ActivityTrigger](https://docs.microsoft.com/en-us/azure/azure-functions/durable-functions-bindings#activity-triggers) per consumer. `ActivityTrigger` enables us to author stateless functions that can be asynchronously called by orchestrator functions. The Azure Functions Scale Controller [automatically scales](https://docs.microsoft.com/en-us/azure/azure-functions/durable-functions-perf-and-scale#auto-scale) them out by adding VMs (on consumption plan). When we call activity functions we can specify a [**retry policy**](https://docs.microsoft.com/en-us/azure/azure-functions/durable-functions-error-handling#automatic-retry-on-failure) for error-handling (similar to Polly) as we’ve done above with the object `retryOptions`.
+We obtained the Cosmos DB product json sent earlier from change feed, then read the list of consumers — *(For simplicity we've chosen to store consumer HTTP endpoints as a pipe **|** delimited string in Application Settings. In reality they reside in Table Storage)*. After that we create an [ActivityTrigger](https://docs.microsoft.com/en-us/azure/azure-functions/durable-functions-bindings#activity-triggers) per consumer. `ActivityTrigger` enables us to author stateless functions that can be asynchronously called by orchestrator functions. The Azure Functions Scale Controller [automatically scales](https://docs.microsoft.com/en-us/azure/azure-functions/durable-functions-perf-and-scale#auto-scale) them out by adding VMs (on consumption plan). When we call activity functions we can specify a [**retry policy**](https://docs.microsoft.com/en-us/azure/azure-functions/durable-functions-error-handling#automatic-retry-on-failure) for error-handling (similar to Polly) as we've done above with the object `retryOptions`.
 ```cs
 public static async Task CallSendToConsumerActivityAsync(DurableOrchestrationContext ctx,
             RetryOptions retryOptions, string consumerUrl, IEnumerable<string> changedProducts)
@@ -149,7 +149,7 @@ public static async Task CallSendToConsumerActivityAsync(DurableOrchestrationCon
 }
 ```
 
-We’ve deliberately wrapped the creation of `ActivityTrigger` in another method so that once retries are exhausted, we can temporarily ban problematic consumers. *(In-fact consumer URLs point to an HTTP trigger function which randomly returns `500 Internal Server Error`)*. As expected, here is what goes on in activity function;
+We've deliberately wrapped the creation of `ActivityTrigger` in another method so that once retries are exhausted, we can temporarily ban problematic consumers. *(In-fact consumer URLs point to an HTTP trigger function which randomly returns `500 Internal Server Error`)*. As expected, here is what goes on in activity function;
 ```cs
 [FunctionName(nameof(SendToConsumerFunc))]
 public static async Task SendToConsumerFunc([ActivityTrigger] (string consumerUrl, IEnumerable<string> changedProducts) consumerData, 
@@ -288,5 +288,5 @@ With all components of our design in place, we ended up with this overall archit
 ![](https://github.com/syedhassaanahmed/azure-event-driven-data-pipeline/blob/master/docs/images/architecture.png?raw=true)
 
 ### Conclusion
-The entire code is available on [GitHub](https://github.com/syedhassaanahmed/azure-event-driven-data-pipeline) and we’ve deliberately kept it as generic as possible, in order for it to be a reusable solution. For single-click repeatable deployments, there is also an [ARM template](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-manager-create-first-template) available.
+The entire code is available on [GitHub](https://github.com/syedhassaanahmed/azure-event-driven-data-pipeline) and we've deliberately kept it as generic as possible, in order for it to be a reusable solution. For single-click repeatable deployments, there is also an [ARM template](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-manager-create-first-template) available.
   
