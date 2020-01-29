@@ -125,6 +125,7 @@ Now its time to transform GraphFrame edges into a Cosmos DB DataFrame. Each row 
 * `_isEdge`: Hardcoded boolean column with value true.
 * `_vertexId`: ID of the source vertex. e.g. In an edge from vertex `a` to vertex `b` the `_vertexId` should be `a`.
 * `_sink`: ID of the destination vertex. e.g. In an edge from vertex `a` to vertex `b` the `_sink` should be `b`.
+
 Similar to vertices, if the Cosmos DB graph is provisioned as a partitioned collection, the following additional columns must also be provided;
 
 * Partition key: Column with the source vertex partition key name.
