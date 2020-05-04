@@ -4,9 +4,9 @@ title:	"Load Testing Analytical Workloads using Kubernetes"
 date:	2019-06-08
 ---
 
-Like any Distributed System, designing a Big Data Analytics solution requires careful planning and experimenation. Depending on the choice of technologies, the planning phase often involves evaluating the schema, indices, sharding and replication strategies, and examine them against factors such as;
-* type of data ingestion (*batch, streaming*)
-* frequency of data ingestion
+Like any Distributed System, designing a Big Data Analytics solution requires a great deal of planning and experimenation. Depending on the choice of technologies, the planning phase often involves evaluating the schemas, indices, sharding and replication strategies, and examine them against factors such as;
+* data ingestion mode (*batch, streaming*)
+* rate of data ingestion
 * amount of data that should be kept in various storage tiers (*hot, warm, cold*)
 * personas that will concurrently query the system (*Data Analyst, Data Scientist, C-Level Executive*)
 * types of queries, aggregations and their accepted response times
@@ -14,10 +14,10 @@ Like any Distributed System, designing a Big Data Analytics solution requires ca
 
 ![](https://www.guru99.com/images/L1.png)
 
-Having a load testing framework in place to simulate the above, allows us to validate the architecture before releasing it to broader audience. Based on a real-life project we did with an energy company, we'll focus on concurrent load testing of queries against an analytics engine in this post. Even though our use-case was Time Series Analysis on [Azure Data Explorer](https://docs.microsoft.com/en-us/azure/data-explorer/data-explorer-overview) (*aka Kusto*), the pattern we've implemented can easily be adapted to test other types of analytical stores and queries. The test framework we implemented had the following characteristics;
+Having a load testing framework in place to simulate the above, allows us to validate the architecture before releasing it to broader audience. Based on a real-life project we did with an energy company, in this post we'll focus on concurrent load testing of queries against an analytics engine. Even though our use-case was Time Series Analysis in [Azure Data Explorer](https://docs.microsoft.com/en-us/azure/data-explorer/data-explorer-overview) (*aka Kusto*), the pattern we've implemented can easily be adapted to test other types of analytical stores and queries. The test framework we implemented had the following characteristics;
 
 ## Programming Language
-In order to ensure we aren't always getting in-memory cached results from the analytics engine, we wanted the queries that are executed during load test to not be static. Let's say for a given set of IoT sensors we'd like to fetch the average sensor value within a time range; we should be able to "randomize" Sensor IDs and the time range for each query in the test. We also wanted to keep the test framework generic enough and decouple it from the actual query construction. The interpreted and dynamically-typed nature of Python along with the availability of client SDK for a wide variety of analytical stores, made Python an obvious choice.
+In order to ensure we aren't always getting in-memory cached results from the analytics engine, we wanted the queries that are executed during load test to be dynamic. Let's say for a given set of IoT sensors we'd like to fetch the average sensor value within a time range; we should be able to "randomize" Sensor IDs and the time range for each query in the test. We also wanted to keep the test framework generic enough and decouple it from the actual query construction. The interpreted and dynamically-typed nature of Python along with the availability of client SDK for a wide variety of analytical stores, made Python an obvious choice.
 
 ![](https://i.pinimg.com/474x/19/89/1b/19891b1eb9c47b70b739e06b20ba83cd--computer-humor-python.jpg)
 
@@ -40,10 +40,10 @@ from query import get_query
 raw_query = get_query()
 execute(raw_query)
 ```
-As it can be seen, the Sensor ID has been randomized. The `query.py` is just a regular Python file, so more complex "randomizations" such as choosing from a set of sensors stored in a dimension table, can also be performed if needed.
+As it can be seen, the Sensor ID has been randomized. `query.py` is just a regular Python file, so more complex "randomizations" such as choosing from a set of sensors stored in a dimension table, can also be performed if needed.
 
 ## Compute
-Since the load tests were to be executed several times against various configuration changes in the analytics engine, we wanted something we can provision and de-commission fast - [immutable infrastructure](https://www.hashicorp.com/resources/what-is-mutable-vs-immutable-infrastructure/). And what more fast and immutable can it be than Docker containers? It also provided the added benefit of a self-contained environment. 
+Since we needed to execute the load tests several times against various configuration changes in the analytics engine, we wanted something we can provision and de-commission fast - [immutable infrastructure](https://www.hashicorp.com/resources/what-is-mutable-vs-immutable-infrastructure/). And what more fast and immutable can it be than Docker containers? It also provided the added benefit of a self-contained environment. 
 
 ![](https://external-preview.redd.it/aR6WdUcsrEgld5xUlglgKX_0sC_NlryCPTXIHk5qdu8.jpg?auto=webp&s=5fe64dd318eec71711d87805d43def2765dd83cd)
 
@@ -67,7 +67,7 @@ To start executing the tests;
 ```sh
 docker run -it --rm --env-file .env syedhassaanahmed/azure-kusto-load-test
 ```
-The above Docker image has been [published to my DockerHub](https://hub.docker.com/r/syedhassaanahmed/azure-kusto-load-test). `.env` file contains environment variables for authenticating and connecting to the Kusto cluster, such as;
+The above Docker image has been [published to my DockerHub](https://hub.docker.com/r/syedhassaanahmed/azure-kusto-load-test). The `.env` file contains environment variables for authenticating and connecting to the Kusto cluster, such as;
 ```
 CLUSTER_QUERY_URL=https://<ADX_CLUSTER>.<REGION>.kusto.windows.net
 CLIENT_ID=<AAD_CLIENT_ID>
@@ -136,4 +136,4 @@ All the code referenced above has been published in this [GitHub repo](https://g
 ## Future improvements
 - [Terraform template](https://www.terraform.io/docs/providers/azurerm/index.html) to provision all the required Azure resources.
 - Connection strings and other authentication parameters stored in [Azure Key Vault](https://github.com/Azure/secrets-store-csi-driver-provider-azure) instead of environment variables.
-- VNET Peering between AKS Cluster and the analytics store, so that all traffic flows through Azure backbone.
+- VNET Peering between AKS Cluster and the analytics store, so that entire traffic flows through Azure backbone.
