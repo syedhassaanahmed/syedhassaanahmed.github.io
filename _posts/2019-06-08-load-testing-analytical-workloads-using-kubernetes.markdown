@@ -14,10 +14,10 @@ Like any Distributed System, designing a Big Data Analytics solution requires ca
 
 ![](https://www.guru99.com/images/L1.png)
 
-Having a load testing framework in place to simulate the above, allows us to validate the architecture before releasing it for broader consumption. Based on a real-life project we did with an energy company, we'll focus on concurrent load testing of queries against an analytical data store in this post. Even though our use-case was Time Series Analysis against [Azure Data Explorer](https://docs.microsoft.com/en-us/azure/data-explorer/data-explorer-overview) (*aka Kusto*), the pattern we've implemented can easily be adapted to test other types of analytical stores and queries. The test framework we implemented had the following characteristics;
+Having a load testing framework in place to simulate the above, allows us to validate the architecture before releasing it to broader audience. Based on a real-life project we did with an energy company, we'll focus on concurrent load testing of queries against an analytics engine in this post. Even though our use-case was Time Series Analysis on [Azure Data Explorer](https://docs.microsoft.com/en-us/azure/data-explorer/data-explorer-overview) (*aka Kusto*), the pattern we've implemented can easily be adapted to test other types of analytical stores and queries. The test framework we implemented had the following characteristics;
 
 ## Programming Language
-In order to ensure we aren't always getting in-memory cached results from the analytics engine, we wanted the queries that are executed during load test to not be static. Let's say for a given set of IoT sensors we'd like to fetch the average sensor value within a time range; we should be able to customize Sensor IDs and the time range for each query in the test. We also wanted to keep the test framework generic enough and decouple it from the actual query construction. The interpreted and dynamically-typed nature of Python along with the availability of client SDK for a wide variety of analytical stores, made Python an obvious choice.
+In order to ensure we aren't always getting in-memory cached results from the analytics engine, we wanted the queries that are executed during load test to not be static. Let's say for a given set of IoT sensors we'd like to fetch the average sensor value within a time range; we should be able to "randomize" Sensor IDs and the time range for each query in the test. We also wanted to keep the test framework generic enough and decouple it from the actual query construction. The interpreted and dynamically-typed nature of Python along with the availability of client SDK for a wide variety of analytical stores, made Python an obvious choice.
 
 ![](https://i.pinimg.com/474x/19/89/1b/19891b1eb9c47b70b739e06b20ba83cd--computer-humor-python.jpg)
 
@@ -61,13 +61,13 @@ COPY test.py .
 
 CMD ["sh", "-c", "curl -sS ${QUERY_SCRIPT_URL} > query.py && python -u ./test.py"]
 ```
-Notice how `query.py` is being download from a web url, injected by environment variable `QUERY_SCRIPT_URL`. If your queries do not contain sensitive content, you can use [secret gists](https://help.github.com/en/github/writing-on-github/creating-gists#creating-a-gist). A more secure approach is to host them on Azure Blob Storage and generate a short-lived [SAS token](https://docs.microsoft.com/en-us/azure/storage/common/storage-sas-overview), scoped just to the specific query files. Additionally we can also [peer](https://docs.microsoft.com/en-us/azure/virtual-network/virtual-network-peering-overview) the container host with Blob Storage in the same [Virtual Network](https://docs.microsoft.com/en-us/azure/storage/common/storage-network-security?toc=/azure/virtual-network/toc.json#grant-access-from-a-virtual-network) and enforce strict firewall rules.
+Notice how `query.py` is being downloaded from a web url, injected via environment variable `QUERY_SCRIPT_URL`. If your queries do not contain sensitive content, you can use [secret gists](https://help.github.com/en/github/writing-on-github/creating-gists#creating-a-gist). A more secure approach is to host them on [Azure Blob Storage](https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction) and generate a short-lived [SAS token](https://docs.microsoft.com/en-us/azure/storage/common/storage-sas-overview), scoped just to the specific query files. Additionally we can also [peer](https://docs.microsoft.com/en-us/azure/virtual-network/virtual-network-peering-overview) the container host with Blob Storage in the same [Virtual Network](https://docs.microsoft.com/en-us/azure/storage/common/storage-network-security?toc=/azure/virtual-network/toc.json#grant-access-from-a-virtual-network) and enforce strict firewall rules.
 
-The above Docker image has been [published to my DockerHub](https://hub.docker.com/r/syedhassaanahmed/azure-kusto-load-test). To start executing the tests;
+To start executing the tests;
 ```sh
 docker run -it --rm --env-file .env syedhassaanahmed/azure-kusto-load-test
 ```
-Where `.env` file contains environment variables for authenticating and connecting to the Kusto cluster, such as;
+The above Docker image has been [published to my DockerHub](https://hub.docker.com/r/syedhassaanahmed/azure-kusto-load-test). `.env` file contains environment variables for authenticating and connecting to the Kusto cluster, such as;
 ```
 CLUSTER_QUERY_URL=https://<ADX_CLUSTER>.<REGION>.kusto.windows.net
 CLIENT_ID=<AAD_CLIENT_ID>
