@@ -26,7 +26,7 @@ Based on [official performance tuning guidelines](https://neo4j.com/developer/gu
 
 I also wanted to share the lessons I learned from building these docker images.
 
-### Dockerfile
+## Dockerfile
 Each Dockerfile uses [multi-stage build](https://docs.docker.com/develop/develop-images/multistage-build/) and follows more or less the following blueprint in the build phase;
 
 * Use [Neo4j](https://hub.docker.com/_/neo4j/) as base image (surprise surprise!).
@@ -41,17 +41,17 @@ Each Dockerfile uses [multi-stage build](https://docs.docker.com/develop/develop
 * Use [Cypher Shell](https://neo4j.com/docs/operations-manual/current/tools/cypher-shell/) to execute `import.cypher`.
 * Copy `$NEO4J_HOME/data/databases/graph.db` directory to root / so that it can be put to the final container during build phase. We have to do this because the `$NEO4J_HOME/data/databases` directory is declared as a [volume](https://docs.docker.com/storage/volumes/) in Neo4j base image and hence can't be copied to the final container.
 
-### Start script
+## Start script
 `neo4j-start.sh` also follows a common blueprint;
 
 * Neo4j comes with default credentials `neo4j/neo4j` but `Cypher Shell` won't allow us to run queries with it, hence we need to use [Neo4j Admin to set an initial temp password](https://neo4j.com/docs/operations-manual/current/configuration/set-initial-password/).
 * Neo4j 3.2 has increased security for procedures and functions. Procedures that use internal APIs have to be allowed in `$NEO4J_HOME/conf/neo4j.conf` with, e.g. `dbms.security.procedures.unrestricted=apoc.*,algo.*`
 * Start the Neo4j server and wait for it to be up and running.
 
-### One more thing!
+## One more thing!
 Remember the `neo-to-cosmos` tool I mentioned in the intro? Yeah, the ARM template also allows you to optionally **migrate all Neo4j data to Cosmos DB** using this tool! *(Additional resources such as Cosmos DB and an Azure Container Instance of [neo-to-cosmos docker image](https://hub.docker.com/r/syedhassaanahmed/neo-to-cosmos/) will be deployed to your Azure subscription)*.
 
-### Summary
+## Summary
 I'd like to thank the awesome Neo4j community, without their help this project wouldn't have been possible.
 
 In case you've missed it among the plethora of links above, here is the link to my [github repo](https://github.com/syedhassaanahmed/neo4j-datasets) again. Happy graphing on Azure!

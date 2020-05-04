@@ -6,7 +6,7 @@ date:	2018-04-05
 
   We recently worked with a retail customer to help them accelerate their cloud journey from on-prem to Microsoft Azure. As with all our engagements, we learned a good deal of lessons and have some findings to share. My colleague [Dag König](https://channel9.msdn.com/Events/Speakers/dag-knig) and I summarized the outcomes and presented them in [Stockholm Azure Meetup (March 2018)](https://www.meetup.com/Stockholm-Azure-Meetup/events/247951748/). In this post, we'll dive deeper into how we built an [event-driven](https://docs.microsoft.com/en-us/azure/architecture/guide/architecture-styles/event-driven) data ingestion pipeline, leveraging Serverless compute and NoSQL databases.
 
-#### Table of Contents
+### Table of Contents
 - [The Challenge](#the-challenge)
 - [Data ingestion](#data-ingestion)
 - [Data storage](#data-storage)
@@ -16,12 +16,12 @@ date:	2018-04-05
 - [E2E Architecture](#e2e-architecture)
 - [Conclusion](#conclusion)
 
-### The Challenge
+## The Challenge
 Customer has a large and complicated data repository which is maintained by multiple systems — let's call it ***Masterdata***. Changes in Masterdata are synced between many systems. Today's on-prem solution suffers from inconsistencies, lost entity changes, poor performance at peaks.​ Customer wants to build a high scale cloud-hosted *"Single source of truth"* repository, including mechanisms for Masterdata changes to get pushed to 3rd party consumers.​ The solution needs to support an unpredictable load with a maximum of 1500 requests/sec.
 
 We approached the problem by dividing it into these logical concerns;
 
-### Data ingestion
+## Data ingestion
 When it comes to large scale data ingestion in Azure, [Event Hubs](https://docs.microsoft.com/en-us/azure/event-hubs/event-hubs-what-is-event-hubs) provide a data streaming platform, capable of receiving and capturing millions of events per second. However the customer had enterprise high-value messaging requirements such as transactions, ordering and dead-lettering. Luckily we have such a service at our disposal in [Azure Service Bus](https://docs.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview). We could have easily skipped Service Bus and directly persisted data to the storage, however the [queue-based load leveling](https://docs.microsoft.com/en-us/azure/architecture/patterns/queue-based-load-leveling) pattern allows us to decouple ingestion from storage, adds resilience in the form of retries, as well as enables asynchronous processing of ingested data.
 
 Instead of directly exposing Service Bus to the source systems, we wanted a REST API with friendly URL. [Azure Functions](https://docs.microsoft.com/en-us/azure/azure-functions/functions-overview) allows us to develop event-driven Serverless applications by providing a multitude of [triggers and bindings](https://docs.microsoft.com/en-us/azure/azure-functions/functions-triggers-bindings). All functions have exactly one trigger which defines how the function is invoked. In just few lines below, we were able to create an HTTP trigger function which inserts a JSON-serialized product entity to the Service Bus Queue called `productsQueue`.
@@ -37,7 +37,7 @@ public static string Run([HttpTrigger(AuthorizationLevel.Function, "post")]
 
 In case the output binding to Service Bus failed, an Exception will be raised from above function. Currently its being handled in client application (not shown in this post but represented by the [*Load generator*](#e2e-architecture)) with retries using [Polly](https://github.com/App-vNext/Polly). If the issue becomes more prominent in future, we plan to implement [Dead-Lettering](https://docs.microsoft.com/en-us/azure/service-bus-messaging/service-bus-dead-letter-queues#application-level-dead-lettering) in above function.
 
-### Data storage
+## Data storage
 Our next big challenge was to decide where to store the data. From prior experience with RDBMS, customer highlighted the challenges they faced including maintenance of normalized schema, scaling issues, complexity of queries. There was some temptation around Graph databases, however customer didn't require traversing a network of relationships — something Graph databases are exceptionally good at.
 
 Due to changing nature of the data as consequence of evolving business requirements, we chose a document database. Document databases in Azure can be provisioned as 3rd party —[ MongoDB Atlas](https://docs.atlas.mongodb.com/reference/microsoft-azure/), as well as first-party PaaS — [Azure Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/introduction). Customer's affinity towards PaaS and the elastic-scale, low-latency capabilities tipped this decision in Cosmos DB's favor.
@@ -87,7 +87,7 @@ In terms of throughput and storage, Cosmos DB collections can be created as *fix
 
 Note the last statement in above method; Every response from Cosmos DB includes a custom header — `x-ms-request-charge` which contains RU consumed for the request. The header is also accessible through Cosmos DB .NET SDK as `RequestCharge` property. We logged this value for telemetry reasons (more on this in [measuring performance](#measuring-performance) section below).
 
-### Data distribution
+## Data distribution
 Once we had our data ingested and stored, we wanted to get notified as CRUD operations happen on storage. The [**Change Feed**](https://docs.microsoft.com/en-us/azure/cosmos-db/change-feed) support in Cosmos DB feels like a match made in heaven for this very scenario —triggering notification when a document is operated on. Here is how we created a change feed trigger function.
 ```cs
 [FunctionName(nameof(ChangeFeedFunc))]
@@ -163,7 +163,7 @@ public static async Task SendToConsumerFunc([ActivityTrigger] (string consumerUr
 }
 ```
 
-### Load Testing
+## Load Testing
 Its all fun and games until the inevitable question — **"But, Will it scale?"** The only way to find out is by measuring. Our colleague [Ville Rantala](https://blog.vjrantal.net/) has already done a great job of [**Load testing with Azure Container Instances and wrk**](https://blog.vjrantal.net/2017/08/10/load-testing-with-azure-container-instances-and-wrk/). Leveraging his work, we created a simple bash script to generate load against the HTTP trigger function which was created earlier for data ingestion.
 ```bash
 SCRIPT_URL=https://raw.githubusercontent.com/syedhassaanahmed/azure-event-driven-data-pipeline/master/load-test/products.lua
@@ -211,7 +211,7 @@ request = function()
 end
 ```
 
-### Measuring performance
+## Measuring performance
 With trivial efforts, we were able to add [Application Insights](https://docs.microsoft.com/en-us/azure/application-insights/app-insights-overview) to all Azure Functions Apps and have a powerful tool for measuring performance of entire flow. Application Insights provides [live metrics streaming](https://docs.microsoft.com/en-us/azure/application-insights/app-insights-live-stream), designed to have minimal latency.
 
 ![](/img/live_metrics_stream.png)
@@ -282,11 +282,11 @@ customMetrics
 }
 ```
 
-### E2E Architecture
+## E2E Architecture
 With all components of our design in place, we ended up with this overall architecture;
 
 ![](https://github.com/syedhassaanahmed/azure-event-driven-data-pipeline/blob/master/docs/images/architecture.png?raw=true)
 
-### Conclusion
+## Conclusion
 The entire code is available on [GitHub](https://github.com/syedhassaanahmed/azure-event-driven-data-pipeline) and we've deliberately kept it as generic as possible, in order for it to be a reusable solution. For single-click repeatable deployments, there is also an [ARM template](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-manager-create-first-template) available.
   

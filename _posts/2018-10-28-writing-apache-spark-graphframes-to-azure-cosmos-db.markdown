@@ -8,18 +8,18 @@ date:	2018-10-28
 
 [Cosmos DB Spark connector](https://github.com/Azure/azure-cosmosdb-spark/tree/master) contains [samples to ***read*** graph data into GraphFrames](https://github.com/Azure/azure-cosmosdb-spark/blob/master/samples/notebooks/On-Time%20Flight%20Performance%20with%20Spark%20and%20Cosmos%20DB%20-%20Seattle.ipynb). In this post we'll demonstrate how to build upon this connector to ***write*** GraphFrames to Cosmos DB using an [Azure Databricks](https://docs.azuredatabricks.net/) `PySpark` notebook.
 
-### Prerequisites
+## Prerequisites
 These are the libraries required and must be attached to the Databricks cluster, **prior** to the notebook execution.
 
 * [GraphFrames](https://spark-packages.org/package/graphframes/graphframes)
 * [azure-cosmosdb-spark](https://github.com/Azure/azure-cosmosdb-spark#using-databricks-notebooks) (*make sure to upload the latest **uber** jar*)
 
-### Example Data
+## Example Data
 We'll use the [friends and followers example graph data](https://graphframes.github.io/graphframes/docs/_site/user-guide.html#tab_python_0) specified in the GraphFrames documentation.
 
 ![](https://databricks.com/wp-content/uploads/2016/03/social-network-graph-diagram.png)
 
-### Getting started
+## Getting started
 Based on the example, here is how we can add a vertices DataFrame;
 ```py
 v = sqlContext.createDataFrame([
@@ -60,10 +60,10 @@ If all is well, we should see the following outputs when displaying the `g.verti
 
 ![](/img/display_edges.png)
 
-### Cosmos DB Graph backend format
+## Cosmos DB Graph backend format
 A Cosmos DB graph collection stores data in JSON format in the backend. This data can also be accessed using the SQL API. A detailed description of this representation of vertices and edges is [described here](https://github.com/LuisBosquez/azure-cosmos-db-graph-working-guides/blob/master/graph-backend-json.md).
 
-#### Preparing Vertices
+### Preparing Vertices
 From the GraphFrame vertices, we'll create a new DataFrame containing Cosmos DB vertex rows. Each such row contains the following columns;
 
 * `id`: Unique ID of the vertex — **Note:** `id` in Cosmos DB is [part of the resource URI](https://github.com/Azure/azure-cosmosdb-dotnet/issues/35#issuecomment-121009258) and hence must be URL encoded. So we've created a [Spark UDF](https://docs.azuredatabricks.net/spark/latest/spark-sql/udf-python.html) for that;
@@ -116,7 +116,7 @@ If the graph was partitioned by `age` property, the same function would yield;
 
 Notice how `age` is not a property bag like `name` anymore
 
-#### Preparing Edges
+### Preparing Edges
 Now its time to transform GraphFrame edges into a Cosmos DB DataFrame. Each row inside that DataFrame will contain the following columns;
 
 * `id`: Similar to the `id` column in a vertex row, a unique ID of the edge. We've decided to generate it based on the convention `<src>_<relationship>_<dst>` e.g. `a_friend_b`.
@@ -165,7 +165,7 @@ If the graph was partitioned by `age` property, the same function would yield;
 
 Notice the additional columns `age` and `_sinkPartition`
 
-### Just insert to Cosmos DB already!!!
+## Just insert to Cosmos DB already!!!
 Enough said! here is all that's left for insertion to Cosmos DB
 ```py
 cosmosDbConfig = {
@@ -182,7 +182,7 @@ cosmosDbVertices.write.format(cosmosDbFormat).mode("append").options(**cosmosDbC
 cosmosDbEdges.write.format(cosmosDbFormat).mode("append").options(**cosmosDbConfig).save()
 ```
 
-### Resources
+## Resources
 The entire notebook is [**available here**](https://github.com/syedhassaanahmed/databricks-notebooks/blob/master/graph_write_cosmosdb.py). Oh and if you're into Scala instead of Python, here is the [**Scala version**](https://github.com/syedhassaanahmed/databricks-notebooks/blob/master/graphWriteCosmosDB.scala).
 
 Happy analyzing graph data on Azure!
