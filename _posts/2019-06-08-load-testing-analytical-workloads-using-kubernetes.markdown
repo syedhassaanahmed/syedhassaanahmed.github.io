@@ -5,22 +5,23 @@ date:	2019-06-08
 ---
 
 Like any Distributed System, designing a Big Data Analytics solution requires careful planning and experimenation. Depending on the choice of technologies, the planning phase often involves evaluating the schema, indices, sharding and replication strategies, and examine them against factors such as;
-* rate of data ingestion
+* type of data ingestion (*batch, streaming*)
+* frequency of data ingestion
 * amount of data that should be kept in various storage tiers (*hot, warm, cold*)
 * personas that will concurrently query the system (*Data Analyst, Data Scientist, C-Level Executive*)
 * types of queries, aggregations and their accepted response times
-* cost of the analytics solution
+* TCO of the analytics solution
 
 ![](https://www.guru99.com/images/L1.png)
 
-Having a load testing framework in place to simulate the above, allows us to validate the architecture before releasing it to a broader audience. In this post we'll focus on concurrent load testing of queries against an analytical data store. Based on a real-life project we did with an energy company, we'll be performing Time Series Analysis against [Azure Data Explorer](https://docs.microsoft.com/en-us/azure/data-explorer/data-explorer-overview) (*aka Kusto*). Having said that, the pattern we've implemented can easily be adapted to test other types of analytical stores and queries. The test framework we implemented had the following characteristics;
+Having a load testing framework in place to simulate the above, allows us to validate the architecture before releasing it for broader consumption. Based on a real-life project we did with an energy company, we'll focus on concurrent load testing of queries against an analytical data store in this post. Even though our use-case was Time Series Analysis against [Azure Data Explorer](https://docs.microsoft.com/en-us/azure/data-explorer/data-explorer-overview) (*aka Kusto*), the pattern we've implemented can easily be adapted to test other types of analytical stores and queries. The test framework we implemented had the following characteristics;
 
 ## Programming Language
-In order to ensure we aren't always getting in-memory cached results from the analytics engine, we wanted the queries that are executed during load test to not be static. Let's say for a given set of IoT sensors we'd like to fetch the average sensor value within a time range. We should be able to customize Sensor IDs and the time range for each query in the load test. We also wanted to keep the test framework generic enough and decouple it from the actual query construction. The interpreted and dynamically-typed nature of Python along with the availability of client SDK for a wide variety of analytical stores, made Python an obvious choice.
+In order to ensure we aren't always getting in-memory cached results from the analytics engine, we wanted the queries that are executed during load test to not be static. Let's say for a given set of IoT sensors we'd like to fetch the average sensor value within a time range; we should be able to customize Sensor IDs and the time range for each query in the test. We also wanted to keep the test framework generic enough and decouple it from the actual query construction. The interpreted and dynamically-typed nature of Python along with the availability of client SDK for a wide variety of analytical stores, made Python an obvious choice.
 
 ![](https://i.pinimg.com/474x/19/89/1b/19891b1eb9c47b70b739e06b20ba83cd--computer-humor-python.jpg)
 
-Here is an example file `query.py` which returns a query to a Kusto table;
+Here is an example code `query.py` that returns a [KQL](https://github.com/microsoft/Kusto-Query-Language) query;
 ```py
 from random import randint
 
@@ -77,11 +78,11 @@ QUERY_SCRIPT_URL=https://.../query.py
 ```
 
 ## Orchestration
-Docker containers are great. If each executing container represents a querying user, we can just spin up multiple containers in order to simulate concurrent users right? What if we have to simulate 100+ concurrent users? Answer: ~~Container Orchestrator~~ Kubernetes.
+Containers turned out to be great. And if each container instance represents a querying user, we can just spin up multiple instances in order to simulate concurrent users right? What if we have to simulate 100+ concurrent users? Answer: ~~Container Orchestrator~~ Kubernetes (*aka k8s*).
 
 ![](https://i.redd.it/iv0oiaz7aqe41.jpg)
 
-Here is a k8s deployment that we created in order to have several replicas of the above container;
+Here is a k8s `deployment.yaml` that we created in order to have several replicas of the above container;
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -107,15 +108,19 @@ spec:
           value: "https://<ADX_CLUSTER>.<REGION>.kusto.windows.net"
         ...
 ```
+To start executing the tests, just apply the above yaml on an [AKS cluster](https://docs.microsoft.com/en-us/azure/aks/);
+```sh
+kubectl apply -f deployment.yaml
+```
 
 ## Telemetry
-We used the [Application Insights](https://docs.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview) feature of Azure Monitor to record and analyze query execution times for each test session. We modified the test framework to include Application Insights SDK and also enhanced it with the notion of a `test_id`;
+We used the [Application Insights](https://docs.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview) feature of Azure Monitor to record and analyze query execution times for each test session. We modified the test framework to include Application Insights SDK and also enhanced it with the notion of a test session by introducing `test_id`;
 ```py
 test_id = os.environ.get("TEST_ID", str(uuid.uuid4()))
 telemetry_client.track_metric("query_time", query_time, properties={"test_id": test_id})
 ```
 
-Aftet the test session has ended, `test_id` allowed us to query Application Insights and project the test execution results;
+After a test session is completed, `test_id` allows us to query Application Insights and project the test execution results using the following KQL query;
 ```sql
 customMetrics
 | where name == "query_time" and customDimensions.test_id == "my_stressful_test"
@@ -125,10 +130,10 @@ customMetrics
 
 ![](/img/ai_query_render.png)
 
-## Future improvements
-- ARM/Terraform template to provision the infra
-- Key Vault for connection string instead of env vars
-- AAD auth to Storage
-- VNet peering
+## Resources
+All the code referenced above has been published in this [GitHub repo](https://github.com/syedhassaanahmed/azure-kusto-load-test). And remember when we said this load testing pattern can easily be adapted to other types of analytical stores? Well we weren't kidding! we've performed similar testing on Azure Synapse Analytics SQL pool and have published the [repo here](https://github.com/syedhassaanahmed/azure-sql-load-test).
 
-## Bonus
+## Future improvements
+- [Terraform template](https://www.terraform.io/docs/providers/azurerm/index.html) to provision all the required Azure resources.
+- Connection strings and other authentication parameters stored in [Azure Key Vault](https://github.com/Azure/secrets-store-csi-driver-provider-azure) instead of environment variables.
+- VNET Peering between AKS Cluster and the analytics store, so that all traffic flows through Azure backbone.
