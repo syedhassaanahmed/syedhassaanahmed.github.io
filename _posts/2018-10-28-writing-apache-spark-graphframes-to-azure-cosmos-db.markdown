@@ -181,6 +181,7 @@ cosmosDbFormat = "com.microsoft.azure.cosmosdb.spark"
 cosmosDbVertices.write.format(cosmosDbFormat).mode("append").options(**cosmosDbConfig).save()
 cosmosDbEdges.write.format(cosmosDbFormat).mode("append").options(**cosmosDbConfig).save()
 ```
+Make sure to use the [Cosmos DB https endpoint](https://docs.microsoft.com/en-us/azure/cosmos-db/how-to-use-regional-gremlin#portal-endpoint-discovery) and **NOT** the `wss://` endpoint.
 
 ## Resources
 The entire notebook is [**available here**](https://github.com/syedhassaanahmed/databricks-notebooks/blob/master/graph_write_cosmosdb.py). Oh and if you're into Scala instead of Python, here is the [**Scala version**](https://github.com/syedhassaanahmed/databricks-notebooks/blob/master/graphWriteCosmosDB.scala).
